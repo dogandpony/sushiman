@@ -1,0 +1,21 @@
+# All dotfiles
+.*
+
+# I mean... not every dot file
+!.gitignore
+!.gitkeep
+!.npmrc
+!.eslintrc
+!.editorconfig
+
+# Miscellaneous
+*.zip
+
+# Frontend-related
+node_modules
+
+# OS
+Icon
+Thumbs.db
+ehthumbs.db
+*~
