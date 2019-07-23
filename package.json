@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Our builder and asset manager with three arms, eight hands, on steroids and with lasers.",
   "main": "index.js",
+  "bin": {
+    "sushiman": "./bin/sushiman.js"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
