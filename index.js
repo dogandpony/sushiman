@@ -4,43 +4,33 @@
  * Our builder with lasers
  * ============================================================================================== */
 
+// Dependencies
+const { watch: gulpWatch } = require('gulp');
+const browsersync = require('browser-sync').create();
 
-/* Dependencies
- * --------------------------- */
+// Lib
+const { load: loadConfig } = require('./lib/buildConfigParser');
+const { writeManifest, updateRevisionedAssets } = require('./lib/cacheBusting');
+const runtimeConfig = require('./lib/runtimeConfig');
+const pipelines = require('./lib/pipelines');
+const util = require('./lib/util');
 
-const { parallel, series } = require("gulp");
+// Global Variables
+const buildConfig = loadConfig('./build.config.js');
 
-const browsersync = require("browser-sync").create();
-const del = require("del");
-const fs = require("fs");
-const gulpWatch = require("gulp").watch;
-
-
-
-/* Gulp Tasks
- * --------------------------- */
 
 /**
  * Inits Browsersync server
  *
  * @param next
  */
-const browserSync = next => {
-	browsersync.init(fs.existsSync("./bs.config.js")
-		? require("./bs.config.js")
-		: {},
-	);
+const browserSyncInit = next => {
+	const bsConfigFile = util.getCwdRelativePath('./bs.config.js');
+
+	browsersync.init(bsConfigFile ? require(bsConfigFile) : {});
 
 	next();
 };
-
-
-/**
- * Deletes the static assets folder
- *
- * @returns {Promise<string[]>}
- */
-const clean = () => del(["./web/"]);
 
 
 /**
@@ -49,50 +39,34 @@ const clean = () => del(["./web/"]);
  * @param next
  */
 const watch = next => {
-	Object.keys(config.builds).forEach(buildType => {
-		const builds = config.builds[buildType];
+	Object.keys(buildConfig.builds).forEach(buildType => {
+		const builds = buildConfig.builds[buildType];
 
 		builds.forEach(buildConfig => {
-			gulpWatch((buildConfig.watch || buildConfig.src), builders[buildType](buildConfig));
+			gulpWatch((buildConfig.watch || buildConfig.src), pipelines[buildType](buildConfig));
 		});
 	});
 
 	next();
 };
 
+const buildTasks = util.getBuildTasks(buildConfig.builds, {
+	...pipelines,
+	...(buildConfig.builders || {})
+});
 
-/**
- * Builds all pipelines
- */
-const buildAll = (() => {
-	const tasks = [];
-	const builderIndex = {};
+module.exports = gulpInstance => {
+	const { parallel, series } = gulpInstance;
 
-	Object.keys(config.builds).forEach(buildType => {
-		if (builders[buildType] === void 0) {
-			console.log(`There is no builder for the ${buildType} task.`);
-
-			return;
-		}
-
-		builderIndex[buildType] = (builderIndex[buildType] || 0);
-
-		config.builds[buildType].forEach(options => {
-			const task = builders[buildType](options);
-
-			task.displayName = `${buildType}:${++builderIndex[buildType]}`;
-
-			tasks.push(task);
-		});
-	});
-
-	return parallel.apply({}, tasks);
-})();
-
-const build = (isProduction
-	? series(clean, buildAll, parallel(writeManifest, updateRevisionedAssets))
-	: series(clean, buildAll)
-);
-
-exports.build = series(clean, build);
-exports.dev = series(clean, build, browserSync, watch);
+	return {
+		build: (runtimeConfig.isProduction
+			? series(
+				buildTasks,
+				writeManifest,
+				updateRevisionedAssets.bind({},buildConfig.options.updateRevisionedAssetsIn)
+			)
+			: series(buildTasks)
+		),
+		dev: series(parallel(buildTasks), browserSyncInit),
+	};
+};
