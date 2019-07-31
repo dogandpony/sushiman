@@ -5,18 +5,23 @@
  * ============================================================================================== */
 
 // Dependencies
-const { watch: gulpWatch } = require('gulp');
+const { watch: gulpWatch, src } = require('gulp');
 const browsersync = require('browser-sync').create();
 
 // Lib
 const { load: loadConfig } = require('./lib/buildConfigParser');
 const { writeManifest, updateRevisionedAssets } = require('./lib/cacheBusting');
+const builder = require('./lib/builder');
 const runtimeConfig = require('./lib/runtimeConfig');
-const pipelines = require('./lib/pipelines');
 const util = require('./lib/util');
 
 // Global Variables
 const buildConfig = loadConfig('./build.config.js');
+
+// Merge custom pipelines into the default pipelines
+if (buildConfig.pipelines !== void 0) {
+	builder.merge(buildConfig.pipelines);
+}
 
 
 /**
@@ -36,24 +41,24 @@ const browserSyncInit = next => {
 /**
  * Watches files for changes
  *
- * @param next
+ * @param gulpInstance
  */
-const watch = next => {
+const watch = gulpInstance => next => {
 	Object.keys(buildConfig.builds).forEach(buildType => {
 		const builds = buildConfig.builds[buildType];
 
-		builds.forEach(buildConfig => {
-			gulpWatch((buildConfig.watch || buildConfig.src), pipelines[buildType](buildConfig));
+		builds.forEach(options => {
+			gulpInstance.watch(
+				(options.watch || options.src),
+				builder.getTask(buildType, options)
+			);
 		});
 	});
 
 	next();
 };
 
-const buildTasks = util.getBuildTasks(buildConfig.builds, {
-	...pipelines,
-	...(buildConfig.builders || {})
-});
+const buildTasks = builder.getAllTasks(buildConfig.builds);
 
 module.exports = gulpInstance => {
 	const { parallel, series } = gulpInstance;
@@ -67,6 +72,6 @@ module.exports = gulpInstance => {
 			)
 			: series(buildTasks)
 		),
-		dev: series(parallel(buildTasks), browserSyncInit),
+		dev: series(parallel(buildTasks), browserSyncInit, watch(gulpInstance)),
 	};
 };
