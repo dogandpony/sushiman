@@ -12,6 +12,7 @@ const browsersync = require('browser-sync').create();
 const { load: loadConfig } = require('./lib/buildConfigParser');
 const { writeManifest, updateRevisionedAssets } = require('./lib/cacheBusting');
 const builder = require('./lib/builder');
+const path = require('path');
 const runtimeConfig = require('./lib/runtimeConfig');
 const util = require('./lib/util');
 
@@ -63,12 +64,17 @@ const buildTasks = builder.getAllTasks(buildConfig.builds);
 module.exports = gulpInstance => {
 	const { parallel, series } = gulpInstance;
 
+	const manifestPath = path.join(
+		buildConfig.options.basePath,
+		buildConfig.options.updateRevisionedAssetsIn
+	);
+
 	return {
 		build: (runtimeConfig.isProduction
 			? series(
 				buildTasks,
 				writeManifest,
-				updateRevisionedAssets.bind({},buildConfig.options.updateRevisionedAssetsIn)
+				updateRevisionedAssets.bind({}, manifestPath)
 			)
 			: series(buildTasks)
 		),
